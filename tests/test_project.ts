@@ -39,14 +39,6 @@ function findCampaignPda(creator: PublicKey, campaignId: anchor.BN): PublicKey {
   return pda;
 }
 
-function findVaultPda(campaignPda: PublicKey): PublicKey {
-  const [pda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("vault"), campaignPda.toBuffer()],
-    program.programId
-  );
-  return pda;
-}
-
 function findVaultLamportsPda(campaignPda: PublicKey): PublicKey {
   const [pda] = PublicKey.findProgramAddressSync(
     [Buffer.from("vault_lamports"), campaignPda.toBuffer()],
@@ -64,7 +56,6 @@ async function initCampaign(params: {
   const target = new anchor.BN(params.targetLamports);
 
   const campaignPda = findCampaignPda(params.creator.publicKey, campaignId);
-  const vaultPda = findVaultPda(campaignPda);
   const vaultLamportsPda = findVaultLamportsPda(campaignPda);
 
   await program.methods
@@ -73,13 +64,12 @@ async function initCampaign(params: {
       creator: params.creator.publicKey,
       beneficiary: params.beneficiary,
       campaign: campaignPda,
-      vault: vaultPda,
       vaultLamports: vaultLamportsPda,
       systemProgram: SystemProgram.programId,
     })
     .rpc();
 
-  return { campaignId, campaignPda, vaultPda, vaultLamportsPda, target };
+  return { campaignId, campaignPda, vaultLamportsPda, target };
 }
 
 async function expectError(p: Promise<unknown>, matcher: RegExp) {
@@ -95,12 +85,12 @@ async function expectError(p: Promise<unknown>, matcher: RegExp) {
 describe("test_project", () => {
   const creator = (provider.wallet as anchor.Wallet).payer;
 
-  it("initialize creates campaign + vault PDAs with expected state", async () => {
+  it("initialize creates campaign + vault lamports PDA with expected state", async () => {
     const beneficiary = Keypair.generate();
     await airdrop(beneficiary.publicKey);
 
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -115,13 +105,6 @@ describe("test_project", () => {
       beneficiary.publicKey.toBase58()
     );
     assert.equal(campaign.isFinalized, false);
-
-    const vaultInfo = await provider.connection.getAccountInfo(vaultPda);
-    assert.isNotNull(vaultInfo, "vault should exist");
-    assert.equal(
-      vaultInfo?.owner.toBase58(),
-      program.programId.toBase58()
-    );
 
     const vaultLamportsInfo = await provider.connection.getAccountInfo(
       vaultLamportsPda
@@ -140,7 +123,7 @@ describe("test_project", () => {
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
     const depositLamports = Math.floor(0.01 * LAMPORTS_PER_SOL);
 
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -158,7 +141,6 @@ describe("test_project", () => {
       .accounts({
         donor: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -188,7 +170,7 @@ describe("test_project", () => {
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
     const depositLamports = Math.floor(0.02 * LAMPORTS_PER_SOL);
 
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -199,7 +181,6 @@ describe("test_project", () => {
       .accounts({
         donor: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -215,7 +196,6 @@ describe("test_project", () => {
         beneficiary: beneficiary.publicKey,
         authority: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -236,9 +216,6 @@ describe("test_project", () => {
       "beneficiary balance should increase by deposited funds minus fees"
     );
 
-    const vaultInfoAfter = await provider.connection.getAccountInfo(vaultPda);
-    assert.isNull(vaultInfoAfter, "vault should be closed after finalize");
-
     const vaultLamportsAfter = await provider.connection.getBalance(
       vaultLamportsPda
     );
@@ -254,7 +231,7 @@ describe("test_project", () => {
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
     const depositLamports = Math.floor(0.01 * LAMPORTS_PER_SOL);
 
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -265,7 +242,6 @@ describe("test_project", () => {
       .accounts({
         donor: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -278,7 +254,6 @@ describe("test_project", () => {
           beneficiary: unauthorized.publicKey,
           authority: creator.publicKey,
           campaign: campaignPda,
-          vault: vaultPda,
           vaultLamports: vaultLamportsPda,
           systemProgram: SystemProgram.programId,
         })
@@ -295,7 +270,7 @@ describe("test_project", () => {
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
     const depositLamports = Math.floor(0.01 * LAMPORTS_PER_SOL);
 
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -306,7 +281,6 @@ describe("test_project", () => {
       .accounts({
         donor: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -318,7 +292,6 @@ describe("test_project", () => {
         beneficiary: beneficiary.publicKey,
         authority: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -332,7 +305,6 @@ describe("test_project", () => {
           beneficiary: beneficiary.publicKey,
           authority: creator.publicKey,
           campaign: campaignPda,
-          vault: vaultPda,
           vaultLamports: vaultLamportsPda,
           systemProgram: SystemProgram.programId,
         })
@@ -347,7 +319,7 @@ describe("test_project", () => {
     await airdrop(beneficiary.publicKey);
 
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -359,7 +331,6 @@ describe("test_project", () => {
         .accounts({
         donor: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -375,7 +346,7 @@ describe("test_project", () => {
     const targetLamports = Math.floor(0.05 * LAMPORTS_PER_SOL);
     const depositLamports = Math.floor(0.01 * LAMPORTS_PER_SOL);
 
-    const { campaignPda, vaultPda, vaultLamportsPda } = await initCampaign({
+    const { campaignPda, vaultLamportsPda } = await initCampaign({
       creator,
       beneficiary: beneficiary.publicKey,
       targetLamports,
@@ -386,7 +357,6 @@ describe("test_project", () => {
       .accounts({
         donor: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -398,7 +368,6 @@ describe("test_project", () => {
         beneficiary: beneficiary.publicKey,
         authority: creator.publicKey,
         campaign: campaignPda,
-        vault: vaultPda,
         vaultLamports: vaultLamportsPda,
         systemProgram: SystemProgram.programId,
       })
@@ -411,7 +380,6 @@ describe("test_project", () => {
         .accounts({
           donor: creator.publicKey,
           campaign: campaignPda,
-          vault: vaultPda,
           vaultLamports: vaultLamportsPda,
           systemProgram: SystemProgram.programId,
         })
@@ -420,7 +388,7 @@ describe("test_project", () => {
     );
   });
 
-  it("mismatched vault seed is rejected", async () => {
+  it("mismatched vault lamports seed is rejected", async () => {
     const beneficiaryA = Keypair.generate();
     const beneficiaryB = Keypair.generate();
     await airdrop(beneficiaryA.publicKey);
@@ -430,7 +398,6 @@ describe("test_project", () => {
 
     const {
       campaignPda: campaignA,
-      vaultPda: vaultA,
       vaultLamportsPda: vaultLamportsA,
     } = await initCampaign({
       creator,
@@ -440,7 +407,6 @@ describe("test_project", () => {
 
     const {
       campaignPda: campaignB,
-      vaultPda: vaultB,
       vaultLamportsPda: vaultLamportsB,
     } = await initCampaign({
       creator,
@@ -454,15 +420,11 @@ describe("test_project", () => {
         .accounts({
           donor: creator.publicKey,
           campaign: campaignA,
-          vault: vaultB,
           vaultLamports: vaultLamportsB,
           systemProgram: SystemProgram.programId,
         })
         .rpc(),
       /ConstraintSeeds|seeds constraint/i
     );
-
-    const vaultInfo = await provider.connection.getAccountInfo(vaultA);
-    assert.isNotNull(vaultInfo, "original vault should remain intact");
   });
 });
