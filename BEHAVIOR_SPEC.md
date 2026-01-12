@@ -1,9 +1,8 @@
 # Behavior Spec (from on-chain code)
 
 ## Program overview
-A campaign/escrow flow with two PDAs and one system-owned PDA:
+A campaign/escrow flow with one program PDA and one system-owned PDA:
 - Campaign PDA: stores campaign state (authority, beneficiary, target, funds, finalized flag, campaign_id).
-- Vault PDA (program-owned): stores bump metadata and is closed on finalize.
 - Vault lamports PDA (system-owned): holds lamports contributed to the campaign.
 
 ## Instructions and accounts
@@ -12,20 +11,17 @@ A campaign/escrow flow with two PDAs and one system-owned PDA:
   - creator: Signer (payer)
   - beneficiary: UncheckedAccount (stored in campaign)
   - campaign: PDA init with seeds ["campaign", creator, campaign_id], payer=creator
-  - vault: PDA init with seeds ["vault", campaign], payer=creator
   - vault_lamports: system-owned PDA init with seeds ["vault_lamports", campaign], payer=creator
   - system_program
 - Behavior:
   - Requires target > 0
   - Sets campaign.funds = 0, target, authority = creator, beneficiary, is_finalized = false
   - Stores campaign.campaign_id
-  - Stores vault.bump
 
 ### deposit(amount: u64)
 - Accounts:
   - donor: Signer (payer for transfer)
   - campaign: Campaign PDA (mut) seeds ["campaign", authority, campaign_id]
-  - vault: Vault PDA (seeds ["vault", campaign])
   - vault_lamports: SystemAccount PDA (mut) seeds ["vault_lamports", campaign]
   - system_program
 - Behavior:
@@ -41,7 +37,6 @@ A campaign/escrow flow with two PDAs and one system-owned PDA:
   - beneficiary: Signer
   - authority: SystemAccount (mut)
   - campaign: Campaign (mut), has_one beneficiary, has_one authority, not finalized
-  - vault: Vault PDA (mut), seeds ["vault", campaign], close = authority
   - vault_lamports: SystemAccount PDA (mut), seeds ["vault_lamports", campaign]
   - system_program
 - Behavior:
@@ -50,7 +45,6 @@ A campaign/escrow flow with two PDAs and one system-owned PDA:
   - Transfers campaign.funds from vault_lamports -> beneficiary using vault_lamports PDA signer seeds
   - Transfers any remaining lamports from vault_lamports -> authority
   - Sets campaign.is_finalized = true; campaign.funds = 0
-  - Closes vault to authority (remaining lamports go to authority)
 
 ## State
 - Campaign:
@@ -60,9 +54,7 @@ A campaign/escrow flow with two PDAs and one system-owned PDA:
   - authority: Pubkey (creator)
   - beneficiary: Pubkey
   - is_finalized: bool
-- Vault:
-  - bump: u8
- - Vault lamports: system account PDA holding lamports
+- Vault lamports: system account PDA holding lamports
 
 ## Key invariants (intended by code)
 - target must be > 0 at initialization
@@ -71,5 +63,4 @@ A campaign/escrow flow with two PDAs and one system-owned PDA:
 - campaign.funds increases only by counted deposits
 - finalize requires beneficiary signer and not already finalized
 - finalize transfers exactly campaign.funds to beneficiary and zeroes funds
-- vault PDA is derived from campaign PDA and is closed on finalize
 - vault_lamports PDA holds lamports and is drained on finalize
