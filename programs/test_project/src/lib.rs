@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
-declare_id!("54Lq7n74BEFz9KcnjaePRV3kFF1VebGHoPEpQPj2Kbch");
+declare_id!("27pnqQrAbmua19nkfGxcv8LLKmFwt9PZPfNTGmAJTinV");
 
 
 #[error_code]
